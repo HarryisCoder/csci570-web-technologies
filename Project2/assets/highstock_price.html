@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>stock search</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
+    
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.0/angular-material.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-animate.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-aria.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-messages.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.0/angular-material.min.js"></script>
+<!--    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.6/angular-animate.js"></script>-->
+    <!--my css-->
+<!--    <link rel="stylesheet" type="text/css" href="main.css">-->
+    <!--highchats-->
+<!--    <script src="https://code.highcharts.com/highcharts.js"></script>-->
+    <!--highstock-->
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="http://code.highcharts.com/modules/exporting.js"></script>
+<!--  moment library-->
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.7.0/moment.min.js"></script>
+</head>
+<body>
+    <div ng-app="MyApp" ng-controller="MyCtrl" id="outer">
+        <div id="highstock-container"></div>
+    </div>
+    <script>
+        var app = angular.module('MyApp', []);
+        app.controller('MyCtrl', function ($scope, $http) {
+            $scope.rootUrl = "http://cs571-nodejs.us-east-2.elasticbeanstalk.com";
+            $scope.requestPrice = function(symbol) {
+                $http({url: $scope.rootUrl, method: "GET", params: {symbol: symbol, indicator: "TIME_SERIES_DAILY"}})
+                .then(function mySuccess(response) {
+                    if (response.data['Error Message'] || angular.equals(response.data, {})) {
+                        console.log("[DEBUG]highstock error!");
+                        Android.showError();
+                    } else {
+                        console.log("[DEBUG]success!");
+                        drawStockChart_price(response.data);
+                        Android.showChart();
+                        setGraphUrl();
+                    }
+                }, function myError() {
+                    console.log("[DEBUG]error!");
+                    Android.showError();
+                });
+            }
+        });
+        function drawStockChart_price(json) {
+            var data_date = [];
+            // var data_vol = [];
+            var data_price = [];
+    //        var data_vol = [];
+            var days = Object.keys(json["Time Series (Daily)"]);
+            var days_num = Math.min(1000, days.length - 1);
+            var regex = /^(\d*)-(\d*)-(\d*)$/g;
+            var match = regex.exec(days[0]);
+            var lastDate = match[2] + "/" + match[3] + "/" + match[1];
+            var symbol = json["Meta Data"]["2. Symbol"];
+            console.log("symbol: " + symbol);
+            console.log("how many days: " + days.length);
+    //        var priceMin = Number.MAX_VALUE;
+    //        var priceMax = Number.MIN_VALUE;
+            for (var i = days_num; i >= 0; i--) {
+                var price = parseFloat(json["Time Series (Daily)"][days[i]]["4. close"]);
+    //            priceMin = Math.min(priceMin, price);
+    //            priceMax = Math.max(priceMax, price);
+    //            var vol = parseInt(json["Time Series (Daily)"][days[i]]["5. volume"]);
+                var regex2 = /^(\d*)-(\d*)-(\d*)$/g;
+                match = regex2.exec(days[i]);
+                var date_form = match[2] + "/" + match[3] + "/" + match[1];
+    //            data_date.push(date);
+    //            var date = new Date(days[i]);
+                var date = moment(date_form, "M/D/YYYY").valueOf();
+                data_price.push([date, price]);
+    //            data_vol.push(vol);
+    //            data_price.push([date, price]);
+    //            data_vol.push([date, vol]);
+
+            }
+            var chartdata = {
+
+                chart: {
+    //                height: 400
+    //                width: 1000
+                },
+
+                xAxis: {
+                    type: 'datetime'
+                },
+
+                title: {
+                    text: symbol.toLocaleUpperCase() + " Stock Value"
+                },
+
+                subtitle: {
+                    text: '<a href="https://www.alphavantage.co/" class="subtitle-link" target="_blank">Source: Alpha Vantage</a>',
+                    useHTML: true
+                },
+
+                rangeSelector: {
+                    buttons: [{
+                        type: 'week',
+                        count: 1,
+                        text: '1w'
+                    },{
+                        type: 'month',
+                        count: 1,
+                        text: '1m'
+                    }, {
+                        type: 'month',
+                        count: 3,
+                        text: '3m'
+                    }, {
+                        type: 'month',
+                        count: 6,
+                        text: '6m'
+                    }, {
+                        type: 'ytd',
+                        text: 'YTD'
+                    }, {
+                        type: 'year',
+                        count: 1,
+                        text: '1y'
+                    }, {
+                        type: 'all',
+                        text: 'All'
+                    }],
+                    selected: 0,
+                },
+
+                series: [{
+                    name: symbol,
+                    data: data_price,
+                    type: 'area',
+                    threshold: null,
+                    tooltip: {
+                        valueDecimals: 2,
+                        formatter: function() {
+                            return Highcharts.dateFormat('%e - %b - %Y', new Date(this.x));
+                        }
+                    }
+                }],
+
+                tooltip: {
+                    split: false
+                },
+
+                responsive: {
+                    rules: [{
+                        condition: {
+                            maxWidth: 500
+                        },
+                        chartOptions: {
+                            rangeSelector: {
+                                buttons: [{
+                                    type: 'month',
+                                    count: 1,
+                                    text: '1m'
+                                }, {
+                                    type: 'month',
+                                    count: 3,
+                                    text: '3m'
+                                }, {
+                                    type: 'month',
+                                    count: 6,
+                                    text: '6m'
+                                }, {
+                                    type: 'year',
+                                    count: 1,
+                                    text: '1y'
+                                }, {
+                                    type: 'all',
+                                    text: 'All'
+                                }],
+                                selected: 0,
+                            },
+                        }
+                    }]
+                }
+            };
+            Highcharts.stockChart('highstock-container', chartdata);
+        }
+          
+        
+//        window.onload = function () {
+////            var symbol = Android.getSymbol();
+//            console.log("ssss");
+//            var symbol = "AAPL";
+//            angular.element($('#outer')).scope().requestPrice(symbol);
+//        }
+    </script>
+    <script>
+        setTimeout(function() {  
+            var symbol = Android.getSymbol();
+//            var symbol = "BABA";
+//            console.log(angular.element($('#outer')));
+            angular.element($('#outer')).scope().requestPrice(symbol);
+         }, 500);
+    </script>
+</body>
+    

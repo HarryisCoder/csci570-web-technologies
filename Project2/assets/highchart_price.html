@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>stock search</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
+    
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.0/angular-material.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-animate.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-aria.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-messages.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.0/angular-material.min.js"></script>
+<!--    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.6/angular-animate.js"></script>-->
+    <!--my css-->
+<!--    <link rel="stylesheet" type="text/css" href="main.css">-->
+    <!--highchats-->
+<!--    <script src="https://code.highcharts.com/highcharts.js"></script>-->
+    <!--highstock-->
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="http://code.highcharts.com/modules/exporting.js"></script>
+<!--  moment library-->
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.7.0/moment.min.js"></script>
+</head>
+<body>
+    <div ng-app="MyApp" ng-controller="MyCtrl" id="outer">
+        <div id="chart-container-price"></div>
+    </div>
+    <script>
+        var app = angular.module('MyApp', []);
+        app.controller('MyCtrl', function ($scope, $http) {
+            $scope.rootUrl = "http://cs571-nodejs.us-east-2.elasticbeanstalk.com";
+            $scope.requestPrice = function(symbol) {
+                $http({url: $scope.rootUrl, method: "GET", params: {symbol: symbol, indicator: "TIME_SERIES_DAILY"}})
+                .then(function mySuccess(response) {
+                    if (response.data['Error Message'] || angular.equals(response.data, {})) {
+                        console.log("[DEBUG]error!");
+                        Android.showError();
+                    } else {
+                        console.log("[DEBUG]success!");
+                        drawChart_price(response.data);
+                        Android.showChart();
+                        setGraphUrl();
+                    }
+                }, function myError() {
+                    console.log("[DEBUG]error!");
+                    Android.showError();
+                });
+            }
+        });
+        
+        function drawChart_price(json) {
+        var data_date = [];
+        // var data_vol = [];
+        var data_price = [];
+        var data_vol = [];
+        var days = Object.keys(json["Time Series (Daily)"]);
+        var regex = /^(\d*)-(\d*)-(\d*)$/g;
+        var match = regex.exec(days[0]);
+        var lastDate = match[2] + "/" + match[3] + "/" + match[1];
+        var symbol = json["Meta Data"]["2. Symbol"];
+        console.log("symbol: " + symbol);
+        console.log("how many days: " + days.length);
+//        var priceMin = Number.MAX_VALUE;
+//        var priceMax = Number.MIN_VALUE;
+        var numberPoints = Math.min(135, days.length - 1);
+        for (var i = numberPoints; i >= 0; i--) {
+            var price = parseFloat(json["Time Series (Daily)"][days[i]]["4. close"]);
+//            priceMin = Math.min(priceMin, price);
+//            priceMax = Math.max(priceMax, price);
+            var vol = parseInt(json["Time Series (Daily)"][days[i]]["5. volume"]);
+            var regex2 = /^(\d*)-(\d*)-(\d*)$/g;
+            match = regex2.exec(days[i]);
+            var date = match[2] + "/" + match[3];
+            data_date.push(date);
+            data_price.push(price);
+            data_vol.push(vol);
+//            data_price.push([date, price]);
+//            data_vol.push([date, vol]);
+
+        }
+        var chartdata = {
+            chart: {
+                zoomType: 'x'
+//                borderColor: "#E3E3E3",
+//                borderWidth: 3,
+//                type: 'line'
+            },
+            title: {
+                text: 'Stock Price'
+            },
+            subtitle: {
+                text: '<a href="https://www.alphavantage.co/" class="subtitle-link" target="_blank">Source: Alpha Vantage</a>',
+                useHTML: true
+            },
+            xAxis: {
+                categories: data_date,
+                type: 'datetime', 
+                labels: {    
+
+//                    format: '{value}',
+
+                    style:{
+                        fontSize: "8px"
+                    },
+                    rotation: -60,
+                },
+                tickInterval: 5,
+                tickLength: 2,
+            },
+            yAxis: [{
+                title: {
+                    text: 'Stock Price'
+                },
+//                min: Math.max(0, priceMin - (priceMax - priceMin) / 5),
+//                tickAmount: 6,
+                labels: {
+                    format: '{value}'
+                },
+            },
+            {
+                title: {
+                    text: 'Volume'
+                },
+//                maxPadding: 2.8,
+//                startOnTick: false,
+//                gridLineWidth: 0,
+                labels: {
+                    formatter: function() { 
+                        return Math.round(this.value/1000000) + 'M'; 
+                    } 
+                },
+                opposite: true
+            }],
+            plotOptions: {
+                area: {
+                    fillOpacity: 0.5,
+                    color: '#0000ff',
+                }
+            },
+
+            series: [{
+                type: 'area',
+                name: symbol,
+//                data: [1,2,3],
+                data: data_price,
+                dashStyle: 'solid',
+            },
+            {
+                type: 'column',
+                name: symbol + " Volume",
+                yAxis: 1,
+//                data: [3,2,1],
+                data: data_vol,
+                color: '#ff0000',
+                pointWidth: 1,
+            }]
+        }
+
+        Highcharts.chart('chart-container-price', chartdata);
+//        enableFbButtonWhenActive("price");
+    }
+    
+    function setGraphUrl() {
+//        highchartsExport.highchartsCustomSVGtoImage($('.right-pane .tab-pane.fade.in.active .highchart-response').highcharts(),function(uri){
+//           window.open(uri);
+//        });
+        var chartConfig = $('#chart-container-price').highcharts();
+//        var chartObj = Highcharts.charts[chartConfig.data('highchartsChart')];
+//        var data = {
+//            options: chartConfig.userOptions,
+////            filename: filename,
+//            type: 'image/png',
+//            async: true,
+//            crossDomain: true
+//        };
+        
+        var obj = {},chartConfig;
+        obj.svg = chartConfig.getSVG();
+        obj.type = 'image/png';
+//        obj.width = 450;
+        obj.async = true;
+
+        var exportUrl = 'http://export.highcharts.com/';
+//        var url = "";
+        $.post(exportUrl, obj, function(response) {
+            var url = exportUrl + response;
+//            window.open(url);
+            console.log("get png url", url);
+            Android.setUrl(url);
+        });
+//        var pngUrl = getHighChartUrl();
+    }
+          
+        
+//        window.onload = function () {
+////            var symbol = Android.getSymbol();
+//            console.log("ssss");
+//            var symbol = "AAPL";
+//            angular.element($('#outer')).scope().requestPrice(symbol);
+//        }
+    </script>
+    <script>
+        setTimeout(function() {  
+            var symbol = Android.getSymbol();
+//            var symbol = "RYB";
+//            console.log(angular.element($('#outer')));
+            angular.element($('#outer')).scope().requestPrice(symbol);
+         }, 500);
+    </script>
+</body>
+    

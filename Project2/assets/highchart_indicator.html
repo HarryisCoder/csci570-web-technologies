@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>stock search</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
+    
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.0/angular-material.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-animate.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-aria.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.5/angular-messages.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angular_material/1.1.0/angular-material.min.js"></script>
+<!--    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.6/angular-animate.js"></script>-->
+    <!--my css-->
+<!--    <link rel="stylesheet" type="text/css" href="main.css">-->
+    <!--highchats-->
+<!--    <script src="https://code.highcharts.com/highcharts.js"></script>-->
+    <!--highstock-->
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="http://code.highcharts.com/modules/exporting.js"></script>
+<!--  moment library-->
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/moment.js/2.7.0/moment.min.js"></script>
+</head>
+<body>
+    <div ng-app="MyApp" ng-controller="MyCtrl" id="outer">
+        <div id="chart-container-indicator"></div>
+    </div>
+    <script>
+        var app = angular.module('MyApp', []);
+        app.controller('MyCtrl', function ($scope, $http) {
+            $scope.rootUrl = "http://cs571-nodejs.us-east-2.elasticbeanstalk.com";
+            $scope.requestPrice = function(symbol, indicator) {
+                $http({url: $scope.rootUrl, method: "GET", params: {symbol: symbol, indicator: indicator}})
+                .then(function mySuccess(response) {
+                    if (response.data['Error Message'] || angular.equals(response.data, {})) {
+                        console.log("[DEBUG]error!");
+                        Android.showError();
+                    } else {
+                        console.log("[DEBUG]success!");
+                        drawChart_indicator(response.data, indicator);
+                        Android.showChart();
+                        setGraphUrl();
+                    }
+                }, function myError() {
+                    console.log("[DEBUG]error!");
+                    Android.showError();
+                });
+            }
+        });
+        function drawChart_indicator(jsonObj, indicator) {
+        // if (indicator == "SMA") {
+        
+        var symbol = jsonObj["Meta Data"]["1: Symbol"];
+//        var divId = "chart-container-" + indicator.toLocaleLowerCase();
+        var title = jsonObj["Meta Data"]["2: Indicator"];
+        var days = Object.keys(jsonObj["Technical Analysis: " + indicator]);
+        // no. of series
+        var series_keys = Object.keys(jsonObj["Technical Analysis: " + indicator][days[0]]);
+        var n = series_keys.length;
+        console.log("symbol: " + symbol);
+//        console.log("divId: " + divId);
+        console.log("title: " + title);
+        console.log("no. of series: " + n + "<br>");
+        // extract and construct data
+        var data = [];
+        var data_date = [];
+        var numPoints = Math.min(135, days.length - 1);
+        for (var j = 0; j < n; j++) {
+            var series = [];
+            for (var i = numPoints; i >= 0; i--) {
+                var value = parseFloat(jsonObj["Technical Analysis: " + indicator][days[i]][series_keys[j]]);
+                var regex2 = /^(\d*)-(\d*)-(\d*)/g;
+                match = regex2.exec(days[i]);
+                var date = match[2] + "/" + match[3];
+//                series.push([date, value]);
+                series.push(value);
+                if (j == 0) {
+                    data_date.push(date);
+                }
+            }
+            if (n == 1) {
+                data.push({"name" : symbol, "data" : series});
+            } else {
+                data.push({"name" : symbol + " " + series_keys[j], "data" : series});
+            }
+        }
+        var chartdata = {
+            chart: {
+                zoomType: 'x'
+            },
+            title: {
+                text: title
+            },
+            subtitle: {
+                text: '<a href="https://www.alphavantage.co/" class="subtitle-link" target="_blank">Source: Alpha Vantage</a>',
+                useHTML: true
+            },
+            xAxis: {
+                type: 'datetime', 
+                categories: data_date,
+                labels: {    
+
+                    format: '{value}',
+
+                    style:{
+                        fontSize: "8px"
+                    },
+                    rotation: -60,
+                },
+                tickInterval: 5,
+            },
+            yAxis: [{
+                title: {
+                    text: indicator
+                },
+                startOnTick: false,
+                labels: {
+                    format: '{value}'
+                },
+            }],
+
+            plotOptions: {
+                series: {
+                    lineWidth: 1,
+                    marker: {
+                        enabled: true, 
+                        radius: 2
+                    }
+                }
+            },
+
+            series: data,
+        }
+        Highcharts.chart("chart-container-indicator", chartdata);
+//        enableFbButtonWhenActive(indicator);
+    }
+          
+        
+//        window.onload = function () {
+////            var symbol = Android.getSymbol();
+//            console.log("ssss");
+//            var symbol = "AAPL";
+//            angular.element($('#outer')).scope().requestPrice(symbol);
+//        }
+    function setGraphUrl() {
+//        highchartsExport.highchartsCustomSVGtoImage($('.right-pane .tab-pane.fade.in.active .highchart-response').highcharts(),function(uri){
+//           window.open(uri);
+//        });
+        var chartConfig = $('#chart-container-indicator').highcharts();
+//        var chartObj = Highcharts.charts[chartConfig.data('highchartsChart')];
+//        var data = {
+//            options: chartConfig.userOptions,
+////            filename: filename,
+//            type: 'image/png',
+//            async: true,
+//            crossDomain: true
+//        };
+        
+        var obj = {},chartConfig;
+        obj.svg = chartConfig.getSVG();
+        obj.type = 'image/png';
+//        obj.width = 450;
+        obj.async = true;
+
+        var exportUrl = 'http://export.highcharts.com/';
+//        var url = "";
+        $.post(exportUrl, obj, function(response) {
+            var url = exportUrl + response;
+//            window.open(url);
+            console.log("get png url", url);
+            Android.setUrl(url);
+        });
+//        var pngUrl = getHighChartUrl();
+    }
+    </script>
+    <script>
+        setTimeout(function() {  
+            var symbol = Android.getSymbol();
+            var indicator = Android.getIndicator();
+//            var symbol = "BABA";
+//            var indicator = "SMA";
+//            console.log(angular.element($('#outer')));
+            angular.element($('#outer')).scope().requestPrice(symbol, indicator);
+         }, 500);
+    </script>
+</body>
+    
